@@ -1,0 +1,6 @@
+# Ralph Loop scripts
+scripts/
+
+# Environment variables
+.env
+**/.env
