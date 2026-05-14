@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useConversations } from '../../hooks/useConversations'
 import { MessageBubble } from './MessageBubble'
 import { InputBar } from './InputBar'
@@ -14,12 +14,14 @@ export function ChatWindow() {
   const { activeConversation, fetchMessages, addMessage } = useConversations()
   const bottomRef = useRef<HTMLDivElement>(null)
   const streamingRef = useRef<boolean>(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
 
   // Fetch messages when active conversation changes
   useEffect(() => {
-    if (activeConversation && activeConversation.messages.length === 0) {
-      fetchMessages(activeConversation.id)
-    }
+    if (!activeConversation) return
+    // Only fetch if we haven't loaded them yet (messages array empty and not streaming)
+    setLoadingMessages(true)
+    fetchMessages(activeConversation.id).finally(() => setLoadingMessages(false))
   }, [activeConversation?.id])
 
   useEffect(() => {
@@ -128,9 +130,15 @@ export function ChatWindow() {
 
       {/* Message thread */}
       <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-4 bg-gray-50 dark:bg-gray-900">
-        {activeConversation.messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
+        {loadingMessages && activeConversation.messages.length === 0 ? (
+          <div className="flex items-center justify-center flex-1 py-10">
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          activeConversation.messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))
+        )}
         <div ref={bottomRef} />
       </div>
 
