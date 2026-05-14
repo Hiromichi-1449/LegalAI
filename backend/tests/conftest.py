@@ -1,7 +1,6 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from unittest.mock import patch, AsyncMock
 
 from app.main import app
 from app.db.models import Base
@@ -40,19 +39,31 @@ def test_firm():
 
 @pytest.fixture
 def test_user(test_firm):
-    return User(
+    user = User(
         id=uuid.uuid4(),
         auth0_sub="auth0|testuser",
         firm_id=test_firm.id,
         email="lawyer@testfirm.com",
         full_name="Test Lawyer",
-        preferred_model="gpt-4o",
+        preferred_model="gpt-5.4",
     )
+    # Attach firm reference for convenience in tests
+    user.firm = test_firm
+    return user
 
 
 @pytest.fixture
-async def client(test_user, db_session):
-    app.dependency_overrides[get_db] = lambda: db_session
+async def seeded_db(test_user, db_session):
+    """Persist test_firm and test_user to the test DB."""
+    db_session.add(test_user.firm)
+    db_session.add(test_user)
+    await db_session.commit()
+    return db_session
+
+
+@pytest.fixture
+async def client(test_user, seeded_db):
+    app.dependency_overrides[get_db] = lambda: seeded_db
     app.dependency_overrides[get_current_user] = lambda: test_user
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
