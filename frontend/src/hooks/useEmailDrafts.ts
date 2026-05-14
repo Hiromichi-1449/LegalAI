@@ -1,10 +1,13 @@
 import { useEmailStore } from '../store/emailStore'
 
 export function useEmailDrafts() {
-  const drafts = useEmailStore((s) => s.drafts)
-  const inbox = useEmailStore((s) => s.inbox)
-  const addDraft = useEmailStore((s) => s.addDraft)
-  const markRead = useEmailStore((s) => s.markRead)
+  const emails = useEmailStore((s) => s.emails)
+  const fetchEmails = useEmailStore((s) => s.fetchEmails)
+  const sendEmail = useEmailStore((s) => s.sendEmail)
+  const saveDraft = useEmailStore((s) => s.saveDraft)
 
-  return { drafts, inbox, addDraft, markRead }
+  const inbox = emails.filter((e) => e.direction === 'inbound' || e.status === 'received')
+  const drafts = emails.filter((e) => e.status === 'draft')
+
+  return { emails, inbox, drafts, fetchEmails, sendEmail, saveDraft }
 }

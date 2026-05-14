@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useEmailStore } from '../../store/emailStore'
 
 interface EmailComposeProps {
   defaultTo?: string
@@ -11,10 +12,23 @@ export function EmailCompose({ defaultTo = '', defaultSubject = '', onClose }: E
   const [to, setTo] = useState(defaultTo)
   const [subject, setSubject] = useState(defaultSubject)
   const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const { sendEmail, saveDraft } = useEmailStore()
 
-  function handleSend() {
-    // In production: POST to email API with { to, subject, body }
-    console.log('Send email:', { to, subject, body })
+  async function handleSend() {
+    if (!to.trim() || !subject.trim()) return
+    setSending(true)
+    try {
+      await sendEmail(to.trim(), subject.trim(), body)
+      onClose()
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!subject.trim()) return
+    await saveDraft(to.trim(), subject.trim(), body)
     onClose()
   }
 
@@ -95,12 +109,21 @@ export function EmailCompose({ defaultTo = '', defaultSubject = '', onClose }: E
 
           {/* Footer toolbar */}
           <div className="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-600 shrink-0">
-            <button
-              onClick={handleSend}
-              className="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full transition"
-            >
-              Send
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSend}
+                disabled={sending}
+                className="px-5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full transition disabled:opacity-40"
+              >
+                {sending ? 'Sending…' : 'Send'}
+              </button>
+              <button
+                onClick={handleSaveDraft}
+                className="px-3 py-1.5 text-gray-500 text-sm border border-gray-200 dark:border-gray-600 rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                Save draft
+              </button>
+            </div>
 
             <div className="flex items-center gap-3">
               {/* Formatting icons (decorative for now) */}

@@ -3,6 +3,7 @@ import { useConversations } from '../../hooks/useConversations'
 import { MessageBubble } from './MessageBubble'
 import { InputBar } from './InputBar'
 import { ModelSelector } from './ModelSelector'
+import { api } from '../../lib/api'
 import type { Message } from '../../types'
 
 function generateId() {
@@ -10,33 +11,99 @@ function generateId() {
 }
 
 export function ChatWindow() {
-  const { activeConversation, addMessage } = useConversations()
+  const { activeConversation, fetchMessages, addMessage } = useConversations()
   const bottomRef = useRef<HTMLDivElement>(null)
+  const streamingRef = useRef<boolean>(false)
+
+  // Fetch messages when active conversation changes
+  useEffect(() => {
+    if (activeConversation && activeConversation.messages.length === 0) {
+      fetchMessages(activeConversation.id)
+    }
+  }, [activeConversation?.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeConversation?.messages])
 
-  function handleSend(content: string) {
-    if (!activeConversation) return
+  async function handleSend(content: string) {
+    if (!activeConversation || streamingRef.current) return
 
     const userMsg: Message = {
       id: generateId(),
       role: 'user',
       content,
-      timestamp: new Date(),
+      created_at: new Date().toISOString(),
     }
     addMessage(activeConversation.id, userMsg)
 
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: "Thank you for your message. I'm reviewing your legal query and will provide a thorough analysis shortly. In a production environment, this would be connected to an AI model via the backend API.",
-        timestamp: new Date(),
+    // Start streaming placeholder
+    const assistantId = generateId()
+    const streamingMsg: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      created_at: new Date().toISOString(),
+    }
+    addMessage(activeConversation.id, streamingMsg)
+    streamingRef.current = true
+
+    try {
+      const authHeader = (api.defaults.headers.common as Record<string, string> | undefined)?.['Authorization'] ?? ''
+      const response = await fetch(`${api.defaults.baseURL}/chat/${activeConversation.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ message: content }),
+      })
+
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}`)
       }
-      addMessage(activeConversation.id, assistantMsg)
-    }, 1200)
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const parsed = JSON.parse(line.slice(6))
+            if (parsed.token) {
+              accumulated += parsed.token
+              addMessage(activeConversation.id, {
+                id: assistantId,
+                role: 'assistant',
+                content: accumulated,
+                created_at: streamingMsg.created_at,
+              })
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Chat] Stream error:', err)
+      addMessage(activeConversation.id, {
+        id: assistantId,
+        role: 'assistant',
+        content: 'An error occurred. Please try again.',
+        created_at: new Date().toISOString(),
+      })
+    } finally {
+      streamingRef.current = false
+    }
   }
 
   if (!activeConversation) {

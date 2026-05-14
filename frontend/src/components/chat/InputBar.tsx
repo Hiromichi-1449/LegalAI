@@ -1,10 +1,10 @@
 import { useRef, useState, type KeyboardEvent, type ChangeEvent } from 'react'
 import jsPDF from 'jspdf'
-import type { Conversation, Message } from '../../types'
+import type { Conversation } from '../../types'
 import { EmailCompose } from './EmailCompose'
 
 interface InputBarProps {
-  activeConversation: Conversation | null
+  activeConversation: (Conversation & { messages?: { role: string; content: string }[] }) | null
   onSend: (content: string) => void
 }
 
@@ -49,14 +49,14 @@ export function InputBar({ activeConversation, onSend }: InputBarProps) {
 
   function handleSavePDF() {
     if (!activeConversation) return
-    const messages = activeConversation.messages
-    const lastMsg = messages.filter((m: Message) => m.role === 'assistant').at(-1)
+    const messages = activeConversation.messages ?? []
+    const lastMsg = messages.filter((m) => m.role === 'assistant').at(-1)
     const doc = new jsPDF()
     doc.setFontSize(14)
     doc.text(`Case Statement — ${activeConversation.title}`, 20, 20)
     doc.setFontSize(11)
     doc.text(lastMsg?.content ?? '', 20, 35, { maxWidth: 170 })
-    doc.save(`case_statement_${activeConversation.clientLastName}.pdf`)
+    doc.save(`case_statement_${activeConversation.title.replace(/\s+/g, '_')}.pdf`)
   }
 
   return (

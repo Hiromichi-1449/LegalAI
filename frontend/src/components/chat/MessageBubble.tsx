@@ -4,7 +4,8 @@ interface MessageBubbleProps {
   message: Message
 }
 
-function formatTime(date: Date) {
+function formatTime(date: string | Date | undefined) {
+  if (!date) return ''
   return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
@@ -35,7 +36,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {message.content}
         </div>
         <span className="text-[10px] text-gray-400">
-          {formatTime(message.timestamp)}
+          {formatTime(message.timestamp ?? message.created_at)}
         </span>
       </div>
     </div>
