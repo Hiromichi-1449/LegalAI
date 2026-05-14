@@ -12,7 +12,7 @@ function formatTime(date: string) {
 }
 
 export function EmailPanel() {
-  const { emails, loading, fetchEmails } = useEmailStore()
+  const { emails, loading, fetchEmails, markRead } = useEmailStore()
 
   useEffect(() => {
     fetchEmails()
@@ -62,6 +62,7 @@ export function EmailPanel() {
           {inbox.map((email) => (
             <button
               key={email.id}
+              onClick={() => !email.is_read && markRead(email.id)}
               className="w-full flex items-start gap-2 px-3 py-2 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-left transition"
             >
               <span

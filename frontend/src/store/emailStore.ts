@@ -8,6 +8,7 @@ interface EmailStore {
   fetchEmails: () => Promise<void>
   sendEmail: (to: string, subject: string, body: string, clientId?: string) => Promise<Email>
   saveDraft: (to: string, subject: string, body: string, clientId?: string) => Promise<Email>
+  markRead: (emailId: string) => Promise<void>
 }
 
 export const useEmailStore = create<EmailStore>((set) => ({
@@ -44,5 +45,10 @@ export const useEmailStore = create<EmailStore>((set) => ({
     })
     set((s) => ({ emails: [data, ...s.emails] }))
     return data
+  },
+
+  markRead: async (emailId) => {
+    const { data } = await api.patch<Email>(`/emails/${emailId}/read`)
+    set((s) => ({ emails: s.emails.map((e) => (e.id === emailId ? data : e)) }))
   },
 }))

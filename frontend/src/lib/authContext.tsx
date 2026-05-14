@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { api, setAuthToken } from './api'
+import { FirmSetupModal } from '../components/auth/FirmSetupModal'
 import type { User } from '../types'
 
 interface AuthContextValue {
@@ -14,6 +15,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0()
   const [appUser, setAppUser] = useState<User | null>(null)
   const [isReady, setIsReady] = useState(false)
+  const [needsFirmName, setNeedsFirmName] = useState(false)
+  const [pendingRegister, setPendingRegister] = useState<((name: string) => void) | null>(null)
 
   useEffect(() => {
     if (isLoading) return
@@ -28,36 +31,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await getAccessTokenSilently()
         setAuthToken(token)
 
-        // Try to fetch existing user profile first
         try {
           const { data } = await api.get<User>('/users/me')
           setAppUser(data)
+          setIsReady(true)
         } catch (err: unknown) {
-          // 404 = not registered yet → register
           const status = (err as { response?: { status?: number } })?.response?.status
           if (status === 404) {
-            const firmName = prompt('Welcome to LegalAI! Enter your firm name to create your workspace:') ?? 'My Firm'
-            const { data } = await api.post<{ user_id: string; firm_id: string; is_new_firm: boolean }>(
-              '/auth/register',
-              { firm_name: firmName },
-            )
-            // Fetch the full user profile after registration
+            // Show firm setup modal and wait for name
+            const firmName = await new Promise<string>((resolve) => {
+              setNeedsFirmName(true)
+              setPendingRegister(() => resolve)
+            })
+
+            await api.post('/auth/register', { firm_name: firmName })
             const { data: user } = await api.get<User>('/users/me')
             setAppUser(user)
-            console.log('[Auth] Registered new firm/user:', data)
+            setIsReady(true)
           } else {
             throw err
           }
         }
       } catch (e) {
         console.error('[Auth] Registration/profile error:', e)
-      } finally {
         setIsReady(true)
       }
     })()
   }, [isAuthenticated, isLoading, getAccessTokenSilently])
 
-  return <AuthContext.Provider value={{ appUser, isReady }}>{children}</AuthContext.Provider>
+  function handleFirmSubmit(name: string) {
+    setNeedsFirmName(false)
+    pendingRegister?.(name)
+    setPendingRegister(null)
+  }
+
+  return (
+    <AuthContext.Provider value={{ appUser, isReady }}>
+      {needsFirmName && <FirmSetupModal onSubmit={handleFirmSubmit} />}
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAppUser() {

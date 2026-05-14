@@ -11,6 +11,10 @@ export function setAuthToken(token: string | null) {
   _token = token
 }
 
+export function getAuthHeader(): string {
+  return _token ? `Bearer ${_token}` : ''
+}
+
 api.interceptors.request.use((config) => {
   if (_token) config.headers.Authorization = `Bearer ${_token}`
   return config

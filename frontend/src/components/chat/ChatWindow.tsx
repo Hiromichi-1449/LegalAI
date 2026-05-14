@@ -3,7 +3,7 @@ import { useConversations } from '../../hooks/useConversations'
 import { MessageBubble } from './MessageBubble'
 import { InputBar } from './InputBar'
 import { ModelSelector } from './ModelSelector'
-import { api } from '../../lib/api'
+import { api, getAuthHeader } from '../../lib/api'
 import type { Message } from '../../types'
 
 function generateId() {
@@ -49,12 +49,11 @@ export function ChatWindow() {
     streamingRef.current = true
 
     try {
-      const authHeader = (api.defaults.headers.common as Record<string, string> | undefined)?.['Authorization'] ?? ''
       const response = await fetch(`${api.defaults.baseURL}/chat/${activeConversation.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: authHeader,
+          Authorization: getAuthHeader(),
         },
         body: JSON.stringify({ message: content }),
       })

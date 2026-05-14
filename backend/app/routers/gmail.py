@@ -1,9 +1,12 @@
 import uuid
 from fastapi import APIRouter, Query
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DB
+from app.db.models import User
 from app.services import gmail_service
+from app.config import settings
 
 router = APIRouter()
 
@@ -20,12 +23,23 @@ async def get_auth_url(current_user: CurrentUser):
 async def gmail_callback(
     code: str = Query(...),
     state: str = Query(...),
-    current_user: CurrentUser = None,
     db: DB = None,
 ):
-    """OAuth callback — exchange code for tokens and store them."""
-    await gmail_service.handle_callback(db, current_user, code)
-    return {"detail": "Gmail connected successfully"}
+    """OAuth callback from Google — exchange code for tokens.
+    The state parameter carries the user_id set in /auth-url.
+    No auth header here because this is a browser redirect from Google.
+    """
+    user_id = uuid.UUID(state)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await gmail_service.handle_callback(db, user, code)
+
+    # Redirect back to the app's email panel after successful connection
+    return RedirectResponse(url=f"{settings.frontend_url}/chat?gmail=connected")
 
 
 @router.post("/sync")

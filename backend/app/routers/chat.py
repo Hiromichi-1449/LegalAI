@@ -1,5 +1,6 @@
 import uuid
 import json
+from datetime import datetime, timezone
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -65,6 +66,7 @@ async def send_message(
 
         # Persist assistant message after stream completes
         assistant_content = "".join(full_response)
+        now = datetime.now(timezone.utc)
         async with db.begin():
             assistant_msg = Message(
                 firm_id=current_user.firm_id,
@@ -74,9 +76,7 @@ async def send_message(
                 model_used=model,
             )
             db.add(assistant_msg)
-
-            # Update conversation updated_at
-            conv.updated_at = assistant_msg.created_at  # triggers onupdate via SQL too
+            conv.updated_at = now
 
         yield f"data: {json.dumps({'done': True})}\n\n"
 
