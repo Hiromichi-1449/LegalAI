@@ -1,5 +1,7 @@
-# Ralph Loop scripts
+# Ralph Loop scripts and local state
 scripts/
+.claude/ralph-loop.local.md
+.claude/settings.local.json
 
 # Environment variables
 .env
