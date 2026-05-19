@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Integer,
+    Boolean, DateTime, Enum, Float, ForeignKey, Integer,
     String, Text, UniqueConstraint, func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -187,3 +188,17 @@ class Email(Base):
 
     user:   Mapped["User"]          = relationship(back_populates="emails")
     client: Mapped["Client | None"] = relationship(back_populates="emails")
+
+
+class SplunkAlert(Base):
+    __tablename__ = "splunk_alerts"
+
+    id:               Mapped[uuid.UUID]      = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    firm_id:          Mapped[uuid.UUID]      = mapped_column(UUID(as_uuid=True), ForeignKey("firms.id", ondelete="CASCADE"), nullable=False)
+    user_id:          Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    alert_name:       Mapped[str]            = mapped_column(String, nullable=False)
+    payload:          Mapped[dict]           = mapped_column(JSONB, nullable=False)
+    splunk_search_id: Mapped[str | None]     = mapped_column(String, nullable=True)
+    risk_score:       Mapped[float | None]   = mapped_column(Float, nullable=True)
+    received_at:      Mapped[datetime]       = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    acknowledged:     Mapped[bool]           = mapped_column(Boolean, nullable=False, default=False)
