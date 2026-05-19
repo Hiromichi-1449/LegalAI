@@ -60,9 +60,17 @@ async def send_message(
 
     async def event_stream():
         full_response = []
-        async for token in llm_service.stream_response(model, context, history, body.message):
-            full_response.append(token)
-            yield f"data: {json.dumps({'token': token})}\n\n"
+        input_tokens: int | None = None
+        output_tokens: int | None = None
+
+        async for item in llm_service.stream_response(model, context, history, body.message):
+            if isinstance(item, dict):
+                usage = item.get("usage", {})
+                input_tokens = usage.get("input_tokens")
+                output_tokens = usage.get("output_tokens")
+            else:
+                full_response.append(item)
+                yield f"data: {json.dumps({'token': item})}\n\n"
 
         # Persist assistant message after stream completes
         assistant_content = "".join(full_response)

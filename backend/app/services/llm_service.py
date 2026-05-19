@@ -1,4 +1,4 @@
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 
@@ -43,7 +43,12 @@ async def stream_response(
     context: str,
     history: list[Message],
     user_message: str,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[str | dict[str, Any], None]:
+    """Yields text tokens followed by a final usage sentinel dict.
+
+    Callers must handle the sentinel: isinstance(item, dict) → usage data,
+    not a token. Sentinel shape: {"usage": {"input_tokens": N, "output_tokens": N}}
+    """
     messages = _build_messages(context, history, user_message)
 
     if model in OPENAI_MODELS:
@@ -53,26 +58,36 @@ async def stream_response(
         async for chunk in _stream_anthropic(model, messages):
             yield chunk
     else:
-        # Default fallback
         async for chunk in _stream_openai("gpt-5.4", messages):
             yield chunk
 
 
-async def _stream_openai(model: str, messages: list[dict]) -> AsyncGenerator[str, None]:
+async def _stream_openai(
+    model: str, messages: list[dict]
+) -> AsyncGenerator[str | dict[str, Any], None]:
     stream = await openai_client.chat.completions.create(
         model=model,
         messages=messages,
         stream=True,
+        stream_options={"include_usage": True},
     )
     async for chunk in stream:
-        delta = chunk.choices[0].delta.content
-        if delta:
-            yield delta
+        if chunk.choices and chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+        if chunk.usage:
+            yield {
+                "usage": {
+                    "input_tokens": chunk.usage.prompt_tokens,
+                    "output_tokens": chunk.usage.completion_tokens,
+                }
+            }
 
 
-async def _stream_anthropic(model: str, messages: list[dict]) -> AsyncGenerator[str, None]:
+async def _stream_anthropic(
+    model: str, messages: list[dict]
+) -> AsyncGenerator[str | dict[str, Any], None]:
     system = messages[0]["content"]
-    chat_messages = messages[1:]  # exclude system from messages list
+    chat_messages = messages[1:]
 
     async with anthropic_client.messages.stream(
         model=model,
@@ -82,3 +97,10 @@ async def _stream_anthropic(model: str, messages: list[dict]) -> AsyncGenerator[
     ) as stream:
         async for text in stream.text_stream:
             yield text
+        final = await stream.get_final_message()
+        yield {
+            "usage": {
+                "input_tokens": final.usage.input_tokens,
+                "output_tokens": final.usage.output_tokens,
+            }
+        }
