@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.exceptions import register_exception_handlers
-from app.routers import auth, users, clients, conversations, chat, documents, emails, gmail
+from app.routers import auth, users, clients, conversations, chat, documents, emails, gmail, internal
 
 app = FastAPI(title="LegalAI API", version="0.1.0")
 
@@ -44,6 +44,9 @@ app.include_router(chat.router,          prefix="/chat",          tags=["chat"])
 app.include_router(documents.router,     prefix="/documents",     tags=["documents"])
 app.include_router(emails.router,        prefix="/emails",        tags=["emails"])
 app.include_router(gmail.router,         prefix="/gmail",         tags=["gmail"])
+
+if settings.splunk_enabled:
+    app.include_router(internal.router, prefix="/internal", tags=["internal"])
 
 
 @app.get("/health")
