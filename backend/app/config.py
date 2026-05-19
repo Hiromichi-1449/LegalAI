@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     # App
     frontend_url: str = "http://localhost:5173"
 
+    # Splunk
+    splunk_enabled: bool = False
+    splunk_hec_url: str = ""
+    splunk_hec_token: str = ""
+    splunk_index: str = "legalai"
+    splunk_source: str = "legalai-backend"
+    splunk_sourcetype: str = "legalai:json"
+    splunk_timeout_seconds: int = 3
+    splunk_alert_secret: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
