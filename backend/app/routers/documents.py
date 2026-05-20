@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Request, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DB
@@ -7,6 +7,7 @@ from app.db.models import Document, IngestionStatus
 from app.schemas.document import DocumentResponse, DocumentStatusResponse
 from app.services.ingestion_service import ingest_document, supabase, BUCKET_NAME
 from app.core.exceptions import NotFoundError, ForbiddenError
+from app.services import splunk_service
 
 router = APIRouter()
 
@@ -80,6 +81,41 @@ async def list_documents(
         .order_by(Document.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+SIGNED_URL_EXPIRY_SECONDS = 300  # 5 minutes
+
+
+@router.get("/{document_id}/download-url")
+async def get_download_url(
+    document_id: uuid.UUID,
+    request: Request,
+    current_user: CurrentUser,
+    db: DB,
+) -> dict[str, str]:
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise NotFoundError("Document not found")
+    if doc.firm_id != current_user.firm_id:
+        raise ForbiddenError()
+
+    signed = supabase.storage.from_(BUCKET_NAME).create_signed_url(
+        doc.storage_path, SIGNED_URL_EXPIRY_SECONDS
+    )
+    signed_url = signed["signedURL"]
+
+    splunk_service.emit({
+        "event_type": "document.download_url_issued",
+        "request_id": getattr(request.state, "request_id", None),
+        "firm_id": str(current_user.firm_id),
+        "user_id": str(current_user.id),
+        "client_id": str(doc.client_id),
+        "document_id": str(doc.id),
+        "file_type": doc.file_type,
+    })
+
+    return {"url": signed_url}
 
 
 @router.delete("/{document_id}", status_code=204)
