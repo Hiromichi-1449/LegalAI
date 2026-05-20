@@ -1,0 +1,213 @@
+<dashboard version="1.1">
+  <label>LegalAI Security &amp; Ops</label>
+  <description>API observability, RAG performance, document ingestion, token usage, and Gmail sync health for LegalAI.</description>
+
+  <!-- ── Row 1: API Health ──────────────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>API Error Rate by Endpoint (last 24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="api.request" status_code>=400
+            | timechart span=15m count by path limit=10
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>API p95 Latency by Endpoint (last 24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="api.request"
+            | timechart span=15m p95(latency_ms) by path limit=10
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">line</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ── Row 2: RAG Performance ─────────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>RAG Answer Latency — avg ms (last 24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="rag.answer_generated"
+            | timechart span=15m avg(latency_ms) as avg_latency_ms
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>LLM Errors (last 24h)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="llm.error"
+            | timechart span=1h count by model
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ── Row 3: Document Ingestion ─────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>Document Ingestion — Success vs Failure (last 7d)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json"
+              event_type IN ("document.ingestion_completed", "document.ingestion_failed")
+            | timechart span=1h count by event_type
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Ingestion Latency — avg ms (last 7d)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="document.ingestion_completed"
+            | timechart span=1h avg(latency_ms) as avg_ingestion_ms
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ── Row 4: Token Usage ────────────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>Token Usage by Firm (last 7d)</title>
+      <table>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="rag.answer_generated"
+            | stats
+                sum(input_tokens)  as total_input_tokens,
+                sum(output_tokens) as total_output_tokens,
+                count              as total_queries
+              by firm_id model
+            | sort -total_input_tokens
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Token Spend Over Time (last 7d)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="rag.answer_generated"
+            | timechart span=1h sum(input_tokens) as input_tokens sum(output_tokens) as output_tokens
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">area</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+  </row>
+
+  <!-- ── Row 5: Gmail Sync Health ──────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>Gmail Sync — Success vs Failure (last 7d)</title>
+      <chart>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json"
+              event_type IN ("gmail.sync_completed", "gmail.sync_failed")
+            | timechart span=1h count by event_type
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="charting.chart">column</option>
+        <option name="charting.legend.placement">bottom</option>
+      </chart>
+    </panel>
+
+    <panel>
+      <title>Gmail Sync Failures — Detail (last 7d)</title>
+      <table>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="gmail.sync_failed"
+            | stats count as failure_count by firm_id user_id error_category
+            | sort -failure_count
+          </query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+
+  <!-- ── Row 6: Security Snapshot ──────────────────────────────────────── -->
+  <row>
+    <panel>
+      <title>Permission Denials by User (last 24h)</title>
+      <table>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="auth.permission_denied"
+            | stats count as denial_count by firm_id user_id path
+            | sort -denial_count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+
+    <panel>
+      <title>Download URL Issuance by User (last 24h)</title>
+      <table>
+        <search>
+          <query>
+            index=legalai sourcetype="legalai:json" event_type="document.download_url_issued"
+            | stats count as url_count by firm_id user_id
+            | sort -url_count
+          </query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>
