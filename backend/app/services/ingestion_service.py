@@ -1,3 +1,4 @@
+import time
 import uuid
 import io
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from sqlalchemy import select
 from app.db.models import Document, DocumentChunk, IngestionStatus
 from app.db.session import async_session
 from app.config import settings
+from app.services import splunk_service
 from openai import AsyncOpenAI
 from supabase import create_client
 
@@ -28,10 +30,11 @@ def _chunk_text(text: str) -> list[str]:
     return splitter.split_text(text)
 
 
-def _extract_text_pdf(file_bytes: bytes) -> str:
+def _extract_text_pdf(file_bytes: bytes) -> tuple[str, int]:
     from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(file_bytes))
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    return text, len(reader.pages)
 
 
 def _extract_text_docx(file_bytes: bytes) -> str:
@@ -48,7 +51,7 @@ async def _embed_chunks(chunks: list[str]) -> list[list[float]]:
     return [item.embedding for item in response.data]
 
 
-async def ingest_document(document_id: uuid.UUID) -> None:
+async def ingest_document(document_id: uuid.UUID, request_id: str | None = None) -> None:
     """
     Background task: parse → chunk → embed → store.
     Uses a fresh DB session (not the request session).
@@ -59,18 +62,30 @@ async def ingest_document(document_id: uuid.UUID) -> None:
         if doc is None:
             return
 
+        base_event = {
+            "request_id": request_id,
+            "firm_id": str(doc.firm_id),
+            "user_id": str(doc.uploaded_by),
+            "client_id": str(doc.client_id),
+            "document_id": str(doc.id),
+            "file_type": doc.file_type,
+        }
+
         # Mark processing
         doc.ingestion_status = IngestionStatus.processing
         await db.commit()
 
+        splunk_service.emit({"event_type": "document.ingestion_started", **base_event})
+        start = time.monotonic()
+
         try:
             # Download from Supabase Storage
-            response = supabase.storage.from_(BUCKET_NAME).download(doc.storage_path)
-            file_bytes = response
+            file_bytes = supabase.storage.from_(BUCKET_NAME).download(doc.storage_path)
 
             # Extract text
+            page_count: int | None = None
             if doc.file_type == "pdf":
-                text = _extract_text_pdf(file_bytes)
+                text, page_count = _extract_text_pdf(file_bytes)
             elif doc.file_type == "docx":
                 text = _extract_text_docx(file_bytes)
             else:
@@ -101,8 +116,23 @@ async def ingest_document(document_id: uuid.UUID) -> None:
             doc.ingestion_status = IngestionStatus.complete
             await db.commit()
 
+            splunk_service.emit({
+                "event_type": "document.ingestion_completed",
+                "chunk_count": len(chunks),
+                "page_count": page_count,
+                "latency_ms": int((time.monotonic() - start) * 1000),
+                **base_event,
+            })
+
         except Exception as exc:
             doc.ingestion_status = IngestionStatus.failed
             doc.error_message = str(exc)
             await db.commit()
+
+            splunk_service.emit({
+                "event_type": "document.ingestion_failed",
+                "error_category": type(exc).__name__,
+                "latency_ms": int((time.monotonic() - start) * 1000),
+                **base_event,
+            })
             raise

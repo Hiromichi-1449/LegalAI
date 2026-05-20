@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DB
 from app.db.models import User
-from app.services import gmail_service
+from app.services import gmail_service, splunk_service
 from app.config import settings
 
 router = APIRouter()
@@ -38,6 +38,12 @@ async def gmail_callback(
 
     await gmail_service.handle_callback(db, user, code)
 
+    splunk_service.emit({
+        "event_type": "gmail.connected",
+        "firm_id": str(user.firm_id),
+        "user_id": str(user.id),
+    })
+
     # Redirect back to the app's email panel after successful connection
     return RedirectResponse(url=f"{settings.frontend_url}/chat?gmail=connected")
 
@@ -45,5 +51,24 @@ async def gmail_callback(
 @router.post("/sync")
 async def sync_gmail(current_user: CurrentUser, db: DB):
     """Pull latest inbox emails from Gmail into the DB."""
-    new_count = await gmail_service.sync_inbox(db, current_user)
-    return {"new_emails": new_count}
+    base_event = {
+        "firm_id": str(current_user.firm_id),
+        "user_id": str(current_user.id),
+    }
+    splunk_service.emit({"event_type": "gmail.sync_started", **base_event})
+    try:
+        new_count = await gmail_service.sync_inbox(db, current_user)
+        splunk_service.emit({
+            "event_type": "gmail.sync_completed",
+            "new_email_count": new_count,
+            **base_event,
+        })
+        return {"new_emails": new_count}
+    except Exception as exc:
+        splunk_service.emit({
+            "event_type": "gmail.sync_failed",
+            "error_category": type(exc).__name__,
+            "retryable": True,
+            **base_event,
+        })
+        raise

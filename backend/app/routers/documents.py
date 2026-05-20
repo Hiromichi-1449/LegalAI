@@ -20,6 +20,7 @@ ALLOWED_TYPES = {
 @router.post("/upload", response_model=DocumentResponse, status_code=202)
 async def upload_document(
     background_tasks: BackgroundTasks,
+    request: Request,
     client_id: uuid.UUID = Form(...),
     file: UploadFile = File(...),
     current_user: CurrentUser = None,
@@ -53,7 +54,17 @@ async def upload_document(
     await db.commit()
     await db.refresh(doc)
 
-    background_tasks.add_task(ingest_document, doc.id)
+    splunk_service.emit({
+        "event_type": "document.uploaded",
+        "request_id": getattr(request.state, "request_id", None),
+        "firm_id": str(current_user.firm_id),
+        "user_id": str(current_user.id),
+        "client_id": str(client_id),
+        "document_id": str(doc.id),
+        "file_type": file_type,
+    })
+
+    background_tasks.add_task(ingest_document, doc.id, getattr(request.state, "request_id", None))
 
     return doc
 

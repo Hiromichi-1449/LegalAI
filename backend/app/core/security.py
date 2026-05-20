@@ -2,6 +2,7 @@ import httpx
 from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from app.config import settings
+from app.services import splunk_service
 
 _jwks_cache: dict | None = None
 
@@ -48,6 +49,10 @@ async def decode_auth0_token(token: str) -> dict:
         )
         return payload
     except JWTError as e:
+        splunk_service.emit({
+            "event_type": "auth.token_validation_failed",
+            "error": str(e),
+        })
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid token: {e}",

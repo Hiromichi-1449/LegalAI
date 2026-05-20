@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.db.models import Email, EmailDirection, EmailStatus, User
 from app.config import settings
+from app.services import splunk_service
 
 sg = SendGridAPIClient(api_key=settings.sendgrid_api_key)
 
@@ -24,8 +25,23 @@ async def send_email(
         subject=subject,
         plain_text_content=body,
     )
-    response = sg.send(message)
-    sendgrid_message_id = response.headers.get("X-Message-Id")
+
+    base_event = {
+        "firm_id": str(user.firm_id),
+        "user_id": str(user.id),
+        "client_id": str(client_id) if client_id else None,
+    }
+
+    try:
+        response = sg.send(message)
+        sendgrid_message_id = response.headers.get("X-Message-Id")
+    except Exception as exc:
+        splunk_service.emit({
+            "event_type": "email.send_failed",
+            "error_category": type(exc).__name__,
+            **base_event,
+        })
+        raise
 
     email = Email(
         firm_id=user.firm_id,
@@ -43,6 +59,9 @@ async def send_email(
     db.add(email)
     await db.commit()
     await db.refresh(email)
+
+    splunk_service.emit({"event_type": "email.sent", **base_event})
+
     return email
 
 
