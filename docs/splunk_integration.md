@@ -16,35 +16,60 @@ LegalAI handles sensitive legal documents, tenant-isolated workspaces, AI-genera
 
 Splunk should not sit directly in the critical chat path. LegalAI should continue to work if Splunk is temporarily unavailable. Events should be emitted asynchronously or with safe retry behavior.
 
-## Recommended Architecture
+## Architecture
 
-```text
-User
-  -> LegalAI Frontend
-  -> FastAPI Backend
-      -> Auth0
-      -> Supabase Postgres / pgvector
-      -> Supabase Storage
-      -> OpenAI / Anthropic
-      -> SendGrid / Gmail
-      -> Splunk Event Emitter
-          -> Splunk HTTP Event Collector / Splunk API
-          -> Splunk Indexes, Dashboards, Alerts
-          -> Splunk MCP Server / AI Assistant / AI Toolkit
-              -> LegalAI Admin Security & Ops Console
+```mermaid
+flowchart TD
+    User(["User / Lawyer"])
+    FE["LegalAI Frontend\nReact + Auth0"]
+    BE["FastAPI Backend"]
+    Auth0["Auth0"]
+    Supabase["Supabase\nPostgres + pgvector + Storage"]
+    LLM["OpenAI / Anthropic"]
+    Email["SendGrid / Gmail"]
+
+    HEC["Splunk HEC :8088\nHTTP Event Collector"]
+    Idx[("Splunk Index\nlegalai")]
+    Dash["Splunk Dashboards"]
+    SPLAlert["Splunk Scheduled\nSPL Alert"]
+
+    Webhook["POST /internal/splunk-alert\nvalidates X-Splunk-Alert-Secret"]
+    AlertsDB[("splunk_alerts\nPostgres table")]
+    AdminUI["Security & Ops Page\n/security-ops"]
+
+    InvestAPI["POST /internal/investigate"]
+    Claude["Claude\nInvestigation Agent\ntool_use loop"]
+    SplunkAPI["Splunk REST API :8089\nrun_splunk_search tool"]
+
+    User -->|HTTPS| FE
+    FE -->|JWT + REST| BE
+    BE --> Auth0
+    BE --> Supabase
+    BE --> LLM
+    BE --> Email
+
+    BE -->|"asyncio.create_task\nfire-and-forget"| HEC
+    HEC --> Idx
+    Idx --> Dash
+    Idx --> SPLAlert
+
+    SPLAlert -->|"webhook\nthreshold exceeded"| Webhook
+    Webhook --> AlertsDB
+    AlertsDB --> AdminUI
+
+    AdminUI -->|"natural-language question\n+ alert context"| InvestAPI
+    InvestAPI --> Claude
+    Claude -->|"SPL tool calls"| SplunkAPI
+    SplunkAPI --> Idx
+    Claude -->|"incident summary"| InvestAPI
+    InvestAPI --> AdminUI
 ```
 
-Core application path:
+**Core application path:** `User → LegalAI → RAG / LLM → Response`
 
-```text
-User -> LegalAI -> RAG / LLM -> Response
-```
+**Observability path:** `LegalAI → Splunk HEC (async) → Splunk Index → Dashboards`
 
-Observability and security path:
-
-```text
-LegalAI -> Structured Events -> Splunk -> Dashboards / Alerts / AI Investigation
-```
+**Security path:** `Splunk SPL Alert → Webhook → splunk_alerts table → Admin Console → Claude Investigation → Summary`
 
 ## Hackathon Positioning
 
@@ -501,17 +526,117 @@ Recommended actions:
 ## Suggested Environment Variables
 
 ```text
+# Event emission (HEC — write-only)
 SPLUNK_ENABLED=false
 SPLUNK_HEC_URL=https://your-splunk-host:8088/services/collector
-SPLUNK_HEC_TOKEN=your-token
+SPLUNK_HEC_TOKEN=your-hec-token
 SPLUNK_INDEX=legalai
 SPLUNK_SOURCE=legalai-backend
 SPLUNK_SOURCETYPE=legalai:json
 SPLUNK_TIMEOUT_SECONDS=3
-SPLUNK_ALERT_SECRET=your-shared-secret
+
+# Inbound alert webhook security
+SPLUNK_ALERT_SECRET=your-shared-secret   # generate: openssl rand -hex 32
+
+# Investigation assistant (REST API — separate from HEC)
+SPLUNK_API_URL=https://your-splunk-host:8089
+SPLUNK_API_TOKEN=your-splunk-api-bearer-token
 ```
 
-`SPLUNK_ALERT_SECRET` is validated via `secrets.compare_digest` on the `X-Splunk-Alert-Secret` header of every inbound webhook. Generate with `openssl rand -hex 32` and set the same value in both LegalAI and the Splunk alert action configuration.
+- `SPLUNK_HEC_TOKEN` — write-only token for the HTTP Event Collector. Create under **Settings → Data Inputs → HTTP Event Collector**.
+- `SPLUNK_ALERT_SECRET` — shared secret for the inbound webhook. Validated via `secrets.compare_digest` on `X-Splunk-Alert-Secret`. Set the same value in LegalAI and in each Splunk alert's webhook action header.
+- `SPLUNK_API_TOKEN` — REST API bearer token for the investigation assistant's SPL queries. Create under **Settings → Tokens** (Splunk 8.x+) or use a service account password. This is **separate** from the HEC token — the REST API uses different auth.
+
+## Setup Guide
+
+### 1. Provision Splunk
+
+Use **Splunk Cloud** (free trial at splunk.com/en_us/download/splunk-cloud.html) or **Splunk Enterprise** (free developer licence, 500 MB/day ingest).
+
+### 2. Create the Splunk index
+
+Settings → Indexes → New Index
+
+| Field | Value |
+|---|---|
+| Index name | `legalai` |
+| Index Data Type | Events |
+| Max size | your preference |
+
+### 3. Create the HEC token
+
+Settings → Data Inputs → HTTP Event Collector → New Token
+
+| Field | Value |
+|---|---|
+| Name | `legalai-backend` |
+| Source type | `legalai:json` (create manually if not listed) |
+| Allowed indexes | `legalai` |
+
+Copy the token value → set as `SPLUNK_HEC_TOKEN`.
+
+Set `SPLUNK_HEC_URL` to `https://<your-host>:8088/services/collector`.
+
+Splunk Cloud: use your `<stack>.splunkcloud.com` hostname.  
+Splunk Enterprise: use your server's IP/hostname.
+
+### 4. Create the REST API token (investigation assistant)
+
+Settings → Tokens → New Token
+
+| Field | Value |
+|---|---|
+| User | your admin account |
+| Expiry | your preference |
+
+Copy the token value → set as `SPLUNK_API_TOKEN`.  
+Set `SPLUNK_API_URL` to `https://<your-host>:8089`.
+
+### 5. Set LegalAI environment variables
+
+Add all variables from **Suggested Environment Variables** above to your Railway (or local `.env`) deployment. Set `SPLUNK_ENABLED=true` last, after all other vars are confirmed.
+
+### 6. Run Alembic migration
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+This creates the `splunk_alerts` table (migration `003_splunk_alerts.py`).
+
+### 7. Import the Splunk dashboard
+
+1. Open Splunk Web → Dashboards → Create New Dashboard → **Source**
+2. Paste the contents of `docs/splunk/dashboard.xml`
+3. Save and confirm panels load (they will be empty until events flow in)
+
+### 8. Configure scheduled SPL alerts
+
+For each alert in `docs/splunk/alerts.md`:
+
+1. Splunk Web → Search → paste the SPL query → **Save As → Alert**
+2. Set the schedule (see each alert's `Schedule` field)
+3. Set **Trigger condition**: Number of results > 0
+4. Add action: **Webhook**
+   - URL: `https://<your-legalai-host>/internal/splunk-alert`
+   - Add custom header: `X-Splunk-Alert-Secret: <value of SPLUNK_ALERT_SECRET>`
+
+### 9. Verify end-to-end
+
+```bash
+# Send a test HEC event manually
+curl -k https://<your-host>:8088/services/collector \
+  -H "Authorization: Splunk <SPLUNK_HEC_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"index":"legalai","sourcetype":"legalai:json","event":{"event_type":"api.request","firm_id":"test","status_code":200}}'
+```
+
+Then run `index=legalai` in Splunk Search — the test event should appear within seconds.
+
+### 10. Access the admin console
+
+Navigate to `https://<your-legalai-host>/security-ops` (Auth0 login required). The page reads from the `splunk_alerts` table and exposes the AI investigation assistant.
 
 ## Implementation Notes
 
