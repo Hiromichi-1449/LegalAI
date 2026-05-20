@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     splunk_sourcetype: str = "legalai:json"
     splunk_timeout_seconds: int = 3
     splunk_alert_secret: str = ""
+    # Splunk REST API — used by the investigation service to run SPL queries
+    splunk_api_url: str = ""   # e.g. https://your-splunk-host:8089
+    splunk_api_token: str = "" # Splunk management API bearer token
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

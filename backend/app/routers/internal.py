@@ -10,8 +10,14 @@ from sqlalchemy import select
 from app.config import settings
 from app.db.models import SplunkAlert
 from app.dependencies import CurrentUser, DB
+from app.services import investigation_service
 
 router = APIRouter()
+
+
+class InvestigateRequest(BaseModel):
+    question: str
+    alert_id: uuid.UUID | None = None
 
 
 class SplunkAlertResponse(BaseModel):
@@ -94,3 +100,20 @@ async def acknowledge_splunk_alert(
     await db.commit()
     await db.refresh(alert)
     return alert
+
+
+@router.post("/investigate")
+async def investigate_incident(
+    body: InvestigateRequest,
+    current_user: CurrentUser,
+    db: DB,
+) -> dict[str, str]:
+    alert_context = None
+    if body.alert_id:
+        result = await db.execute(select(SplunkAlert).where(SplunkAlert.id == body.alert_id))
+        alert = result.scalar_one_or_none()
+        if alert and alert.firm_id == current_user.firm_id:
+            alert_context = alert.payload
+
+    summary = await investigation_service.investigate(body.question, alert_context)
+    return {"summary": summary}

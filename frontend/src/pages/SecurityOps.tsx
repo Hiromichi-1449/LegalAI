@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { ShieldAlert, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react'
-import { fetchSplunkAlerts, acknowledgeSplunkAlert } from '../lib/api'
+import { useEffect, useRef, useState } from 'react'
+import { ShieldAlert, CheckCircle, AlertTriangle, RefreshCw, Search, Loader2 } from 'lucide-react'
+import { fetchSplunkAlerts, acknowledgeSplunkAlert, investigateAlert } from '../lib/api'
 import { Button } from '../components/shared/Button'
 import type { SplunkAlert } from '../types'
 
@@ -19,18 +19,27 @@ function riskColor(score: number | null) {
   return 'bg-green-100 text-green-700'
 }
 
-function AlertCard({ alert, onAcknowledge }: { alert: SplunkAlert; onAcknowledge: (id: string) => void }) {
-  const [loading, setLoading] = useState(false)
-  const label = ALERT_LABELS[alert.alert_name] ?? alert.alert_name
+// ─── Alert card ───────────────────────────────────────────────────────────────
+
+interface AlertCardProps {
+  alert: SplunkAlert
+  onAcknowledge: (id: string) => void
+  onInvestigate: (alert: SplunkAlert) => void
+}
+
+function AlertCard({ alert, onAcknowledge, onInvestigate }: AlertCardProps) {
+  const [ackLoading, setAckLoading] = useState(false)
+  const label     = ALERT_LABELS[alert.alert_name] ?? alert.alert_name
   const receivedAt = new Date(alert.received_at).toLocaleString()
+  const p = alert.payload as Record<string, unknown>
 
   async function handleAcknowledge() {
-    setLoading(true)
+    setAckLoading(true)
     try {
       await acknowledgeSplunkAlert(alert.id)
       onAcknowledge(alert.id)
     } finally {
-      setLoading(false)
+      setAckLoading(false)
     }
   }
 
@@ -49,42 +58,147 @@ function AlertCard({ alert, onAcknowledge }: { alert: SplunkAlert; onAcknowledge
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-500">
-        {alert.user_id && <span>User: <span className="font-mono text-gray-700">{alert.user_id.slice(0, 8)}…</span></span>}
-        {(alert.payload as Record<string, unknown>).rag_query_count !== undefined && (
-          <span>RAG queries: <strong className="text-gray-700">{String((alert.payload as Record<string, unknown>).rag_query_count)}</strong></span>
+        {alert.user_id && (
+          <span>User: <span className="font-mono text-gray-700">{alert.user_id.slice(0, 8)}…</span></span>
         )}
-        {(alert.payload as Record<string, unknown>).distinct_clients !== undefined && (
-          <span>Clients accessed: <strong className="text-gray-700">{String((alert.payload as Record<string, unknown>).distinct_clients)}</strong></span>
+        {p.rag_query_count !== undefined && (
+          <span>RAG queries: <strong className="text-gray-700">{String(p.rag_query_count)}</strong></span>
         )}
-        {(alert.payload as Record<string, unknown>).denial_count !== undefined && (
-          <span>Denials: <strong className="text-gray-700">{String((alert.payload as Record<string, unknown>).denial_count)}</strong></span>
+        {p.distinct_clients !== undefined && (
+          <span>Clients accessed: <strong className="text-gray-700">{String(p.distinct_clients)}</strong></span>
         )}
-        {(alert.payload as Record<string, unknown>).download_count !== undefined && (
-          <span>Downloads: <strong className="text-gray-700">{String((alert.payload as Record<string, unknown>).download_count)}</strong></span>
+        {p.denial_count !== undefined && (
+          <span>Denials: <strong className="text-gray-700">{String(p.denial_count)}</strong></span>
+        )}
+        {p.download_count !== undefined && (
+          <span>Downloads: <strong className="text-gray-700">{String(p.download_count)}</strong></span>
         )}
         <span className="col-span-2 text-gray-400">{receivedAt}</span>
       </div>
 
       {!alert.acknowledged && (
-        <Button
-          variant="secondary"
-          className="self-end text-xs px-3 py-1.5"
-          onClick={handleAcknowledge}
-          disabled={loading}
-        >
-          <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
-          {loading ? 'Acknowledging…' : 'Acknowledge'}
-        </Button>
+        <div className="flex items-center gap-2 self-end">
+          <Button
+            variant="ghost"
+            className="text-xs px-3 py-1.5 text-blue-600 hover:bg-blue-50"
+            onClick={() => onInvestigate(alert)}
+          >
+            <Search className="w-3.5 h-3.5 mr-1.5" />
+            Investigate
+          </Button>
+          <Button
+            variant="secondary"
+            className="text-xs px-3 py-1.5"
+            onClick={handleAcknowledge}
+            disabled={ackLoading}
+          >
+            <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+            {ackLoading ? 'Acknowledging…' : 'Acknowledge'}
+          </Button>
+        </div>
       )}
     </div>
   )
 }
 
-export function SecurityOps() {
-  const [alerts, setAlerts]       = useState<SplunkAlert[]>([])
-  const [showAll, setShowAll]     = useState(false)
-  const [loading, setLoading]     = useState(true)
+// ─── Investigation panel ──────────────────────────────────────────────────────
+
+interface InvestigationPanelProps {
+  initialAlert?: SplunkAlert | null
+  onClose: () => void
+}
+
+function InvestigationPanel({ initialAlert, onClose }: InvestigationPanelProps) {
+  const [question, setQuestion]   = useState(
+    initialAlert
+      ? `Why did this ${ALERT_LABELS[initialAlert.alert_name] ?? initialAlert.alert_name} alert fire, and is it suspicious?`
+      : ''
+  )
+  const [summary, setSummary]     = useState<string | null>(null)
+  const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState<string | null>(null)
+  const textareaRef               = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => { textareaRef.current?.focus() }, [])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!question.trim() || loading) return
+    setLoading(true)
+    setError(null)
+    setSummary(null)
+    try {
+      const result = await investigateAlert(question.trim(), initialAlert?.id)
+      setSummary(result)
+    } catch {
+      setError('Investigation failed. Check that SPLUNK_API_URL and SPLUNK_API_TOKEN are configured.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-white p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-blue-600" />
+          <span className="font-semibold text-gray-900 text-sm">AI Investigation</span>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">✕ Close</button>
+      </div>
+
+      {initialAlert && (
+        <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+          Investigating: <strong>{ALERT_LABELS[initialAlert.alert_name] ?? initialAlert.alert_name}</strong>
+          {initialAlert.user_id && <> — user {initialAlert.user_id.slice(0, 8)}…</>}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <textarea
+          ref={textareaRef}
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          placeholder="e.g. Why did this firm have an AI usage spike today, and was it suspicious?"
+          rows={3}
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+        />
+        <Button
+          type="submit"
+          variant="primary"
+          className="self-end text-sm px-4 py-2"
+          disabled={loading || !question.trim()}
+        >
+          {loading
+            ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Investigating…</>
+            : <><Search className="w-3.5 h-3.5 mr-1.5" />Run Investigation</>
+          }
+        </Button>
+      </form>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {summary && (
+        <div className="rounded-lg bg-gray-50 border px-4 py-3 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+          {summary}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export function SecurityOps() {
+  const [alerts, setAlerts]               = useState<SplunkAlert[]>([])
+  const [showAll, setShowAll]             = useState(false)
+  const [loading, setLoading]             = useState(true)
+  const [error, setError]                 = useState<string | null>(null)
+  const [investigatingAlert, setInvestigating] = useState<SplunkAlert | null | 'open'>(null)
 
   async function load() {
     setLoading(true)
@@ -105,8 +219,16 @@ export function SecurityOps() {
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, acknowledged: true } : a))
   }
 
+  function handleInvestigate(alert: SplunkAlert) {
+    setInvestigating(alert)
+    setTimeout(() => {
+      document.getElementById('investigation-panel')?.scrollIntoView({ behavior: 'smooth' })
+    }, 50)
+  }
+
   const active       = alerts.filter(a => !a.acknowledged)
   const acknowledged = alerts.filter(a => a.acknowledged)
+  const showInvestPanel = investigatingAlert !== null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -135,6 +257,14 @@ export function SecurityOps() {
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Button
+              variant="ghost"
+              className="text-sm px-3 py-1.5 text-blue-600 hover:bg-blue-50"
+              onClick={() => setInvestigating('open')}
+            >
+              <Search className="w-3.5 h-3.5 mr-1.5" />
+              Investigate
+            </Button>
           </div>
         </div>
 
@@ -158,6 +288,16 @@ export function SecurityOps() {
           </div>
         </div>
 
+        {/* Investigation panel */}
+        {showInvestPanel && (
+          <div id="investigation-panel" className="mb-6">
+            <InvestigationPanel
+              initialAlert={investigatingAlert === 'open' ? null : investigatingAlert}
+              onClose={() => setInvestigating(null)}
+            />
+          </div>
+        )}
+
         {/* Alert feed */}
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-6">
@@ -174,13 +314,23 @@ export function SecurityOps() {
 
         <div className="flex flex-col gap-3">
           {active.map(alert => (
-            <AlertCard key={alert.id} alert={alert} onAcknowledge={handleAcknowledge} />
+            <AlertCard
+              key={alert.id}
+              alert={alert}
+              onAcknowledge={handleAcknowledge}
+              onInvestigate={handleInvestigate}
+            />
           ))}
           {showAll && acknowledged.length > 0 && (
             <>
               <p className="text-xs text-gray-400 mt-4 mb-1 uppercase tracking-wide font-medium">Acknowledged</p>
               {acknowledged.map(alert => (
-                <AlertCard key={alert.id} alert={alert} onAcknowledge={handleAcknowledge} />
+                <AlertCard
+                  key={alert.id}
+                  alert={alert}
+                  onAcknowledge={handleAcknowledge}
+                  onInvestigate={handleInvestigate}
+                />
               ))}
             </>
           )}

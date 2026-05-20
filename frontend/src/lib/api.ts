@@ -31,3 +31,8 @@ export async function acknowledgeSplunkAlert(alertId: string) {
   const res = await api.patch(`/internal/splunk-alerts/${alertId}/acknowledge`)
   return res.data
 }
+
+export async function investigateAlert(question: string, alertId?: string): Promise<string> {
+  const res = await api.post('/internal/investigate', { question, alert_id: alertId ?? null })
+  return res.data.summary
+}
