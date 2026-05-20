@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { Login } from './pages/Login'
 import { Chat } from './pages/Chat'
+import { SecurityOps } from './pages/SecurityOps'
 import { useAppUser } from './lib/authContext'
 import { type ReactNode } from 'react'
 
@@ -44,6 +45,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Chat />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/security-ops"
+        element={
+          <ProtectedRoute>
+            <SecurityOps />
           </ProtectedRoute>
         }
       />

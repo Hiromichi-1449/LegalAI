@@ -79,6 +79,18 @@ export interface Email {
   created_at: string
 }
 
+export interface SplunkAlert {
+  id: string
+  firm_id: string
+  user_id: string | null
+  alert_name: string
+  payload: Record<string, unknown>
+  splunk_search_id: string | null
+  risk_score: number | null
+  received_at: string
+  acknowledged: boolean
+}
+
 // ─── Legacy / local types (kept for compat) ──────────────────────────────────
 
 export interface EmailDraft {

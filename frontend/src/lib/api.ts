@@ -19,3 +19,15 @@ api.interceptors.request.use((config) => {
   if (_token) config.headers.Authorization = `Bearer ${_token}`
   return config
 })
+
+export async function fetchSplunkAlerts(acknowledged?: boolean) {
+  const params: Record<string, string> = {}
+  if (acknowledged !== undefined) params.acknowledged = String(acknowledged)
+  const res = await api.get('/internal/splunk-alerts', { params })
+  return res.data
+}
+
+export async function acknowledgeSplunkAlert(alertId: string) {
+  const res = await api.patch(`/internal/splunk-alerts/${alertId}/acknowledge`)
+  return res.data
+}
