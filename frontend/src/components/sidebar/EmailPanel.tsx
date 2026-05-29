@@ -32,7 +32,7 @@ export function EmailPanel() {
         // Not connected — get auth URL
         try {
           const { data } = await api.get<{ auth_url: string }>('/gmail/auth-url')
-          window.open(data.auth_url, '_blank')
+          window.location.href = data.auth_url
         } catch {
           alert('Failed to connect Gmail.')
         }

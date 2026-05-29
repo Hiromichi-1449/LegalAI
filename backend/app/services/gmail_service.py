@@ -93,6 +93,7 @@ async def sync_inbox(db: AsyncSession, user: User) -> int:
         token_uri="https://oauth2.googleapis.com/token",
         client_id=settings.gmail_client_id,
         client_secret=settings.gmail_client_secret,
+        expiry=token_row.token_expiry,
     )
 
     gmail_service = build("gmail", "v1", credentials=credentials)
