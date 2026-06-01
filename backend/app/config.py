@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # App
     frontend_url: str = "http://localhost:5173"
+    extra_cors_origins: str = ""  # comma-separated additional origins
 
     # Splunk
     splunk_enabled: bool = False
