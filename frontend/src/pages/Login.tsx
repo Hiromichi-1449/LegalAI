@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
+import { LegalLinks } from '../components/shared/LegalLinks'
 
 export function Login() {
   const { loginWithRedirect, isAuthenticated, isLoading } = useAuth0()
@@ -125,6 +126,8 @@ export function Login() {
             </label>
           </div>
         </form>
+
+        <LegalLinks className="mt-6 justify-center" />
       </div>
     </div>
   )

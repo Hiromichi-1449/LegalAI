@@ -3,6 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { Login } from './pages/Login'
 import { Chat } from './pages/Chat'
 import { SecurityOps } from './pages/SecurityOps'
+import { LegalDocument } from './pages/LegalDocument'
 import { useAppUser } from './lib/authContext'
 import { type ReactNode } from 'react'
 
@@ -39,6 +40,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy-policy" element={<LegalDocument type="privacy" />} />
+      <Route path="/terms-of-service" element={<LegalDocument type="terms" />} />
       <Route path="/callback" element={<Callback />} />
       <Route
         path="/chat"
