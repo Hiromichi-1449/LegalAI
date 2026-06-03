@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
 import { useEmailStore } from '../../store/emailStore'
 import { api } from '../../lib/api'
 
@@ -12,29 +13,34 @@ function formatTime(date: string) {
 }
 
 export function EmailPanel() {
+  const { isAuthenticated, loginWithRedirect } = useAuth0()
   const { emails, loading, fetchEmails, markRead } = useEmailStore()
 
   useEffect(() => {
+    if (!isAuthenticated) return
     fetchEmails()
-  }, [])
+  }, [isAuthenticated])
 
   const inbox = emails.filter((e) => e.direction === 'inbound' || e.status === 'received')
   const outbound = emails.filter((e) => e.direction === 'outbound' && e.status !== 'draft')
   const drafts = emails.filter((e) => e.status === 'draft')
 
-  async function handleSyncGmail() {
+  async function handleSyncEmail() {
+    if (!isAuthenticated) {
+      loginWithRedirect()
+      return
+    }
     try {
       await api.post('/gmail/sync')
       fetchEmails()
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 400) {
-        // Not connected — get auth URL
         try {
           const { data } = await api.get<{ auth_url: string }>('/gmail/auth-url')
           window.location.href = data.auth_url
         } catch {
-          alert('Failed to connect Gmail.')
+          alert('Failed to connect email.')
         }
       }
     }
@@ -45,13 +51,13 @@ export function EmailPanel() {
       {/* Sync button */}
       <div className="px-3 py-2">
         <button
-          onClick={handleSyncGmail}
+          onClick={handleSyncEmail}
           className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          {loading ? 'Syncing…' : 'Sync Gmail'}
+          {loading ? 'Syncing…' : 'Sync Email'}
         </button>
       </div>
 
@@ -127,7 +133,7 @@ export function EmailPanel() {
       )}
 
       {emails.length === 0 && !loading && (
-        <p className="px-4 py-3 text-xs text-gray-400">No emails yet. Click Sync Gmail to import your inbox.</p>
+        <p className="px-4 py-3 text-xs text-gray-400">No emails yet. Click Sync Email to connect your inbox.</p>
       )}
     </div>
   )

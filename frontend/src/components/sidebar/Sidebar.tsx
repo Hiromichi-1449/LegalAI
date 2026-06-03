@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
 import { useConversations } from '../../hooks/useConversations'
 import { useClientStore } from '../../store/clientStore'
@@ -15,7 +16,7 @@ type Tab = 'history' | 'files' | 'email'
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('history')
   const [showNewConv, setShowNewConv] = useState(false)
-  const { user } = useAuth0()
+  const { user, isAuthenticated } = useAuth0()
   const { appUser } = useAppUser()
   const { fetchConversations } = useConversations()
   const { fetchClients } = useClientStore()
@@ -30,11 +31,11 @@ export function Sidebar() {
     .toUpperCase()
     .slice(0, 2)
 
-  // Load conversations and clients on mount
   useEffect(() => {
+    if (!isAuthenticated) return
     fetchConversations()
     fetchClients()
-  }, [])
+  }, [isAuthenticated])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'history', label: 'History' },
@@ -96,32 +97,56 @@ export function Sidebar() {
             <LegalLinks />
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-3">
-            <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-[10px] font-medium text-blue-700 dark:text-blue-300 shrink-0">
-              {initials}
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 px-3 py-3">
+              <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-[10px] font-medium text-blue-700 dark:text-blue-300 shrink-0">
+                {initials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">{displayName}</p>
+                <p className="text-[10px] text-gray-400 truncate">{email}</p>
+              </div>
+              <button
+                onClick={toggle}
+                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              >
+                {isDark ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate">{displayName}</p>
-              <p className="text-[10px] text-gray-400 truncate">{email}</p>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-3">
+              <Link
+                to="/login"
+                className="flex-1 flex items-center justify-center py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+              >
+                Sign in
+              </Link>
+              <button
+                onClick={toggle}
+                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              >
+                {isDark ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                )}
+              </button>
             </div>
-
-            {/* Dark mode toggle */}
-            <button
-              onClick={toggle}
-              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-            >
-              {isDark ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 7a5 5 0 100 10A5 5 0 0012 7z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
-          </div>
+          )}
         </div>
       </div>
     </>

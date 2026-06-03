@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useAuth0 } from '@auth0/auth0-react'
+import { Landing } from './pages/Landing'
 import { Login } from './pages/Login'
 import { Chat } from './pages/Chat'
 import { SecurityOps } from './pages/SecurityOps'
@@ -20,7 +21,7 @@ function Callback() {
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading, loginWithRedirect } = useAuth0()
+  const { isAuthenticated, isLoading } = useAuth0()
   const { isReady } = useAppUser()
 
   if (isLoading || (isAuthenticated && !isReady)) {
@@ -28,29 +29,22 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    loginWithRedirect()
-    return null
+    return <Navigate to="/login" replace />
   }
 
   return <>{children}</>
 }
 
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/privacy-policy" element={<LegalDocument type="privacy" />} />
       <Route path="/terms-of-service" element={<LegalDocument type="terms" />} />
       <Route path="/callback" element={<Callback />} />
-      <Route
-        path="/chat"
-        element={
-          <ProtectedRoute>
-            <Chat />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/chat" element={<Chat />} />
       <Route
         path="/security-ops"
         element={
@@ -59,7 +53,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
