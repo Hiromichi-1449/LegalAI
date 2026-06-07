@@ -44,6 +44,8 @@ Set these in **Railway → backend service → Variables**:
 | `SENDGRID_API_KEY` | From SendGrid dashboard |
 | `ANTHROPIC_API_KEY` | From Anthropic console |
 | `OPENAI_API_KEY` | From OpenAI (if using OpenAI provider) |
+| `FRONTEND_URL` | Public frontend origin, e.g. `https://legalai.consulting` |
+| `EXTRA_CORS_ORIGINS` | Optional comma-separated extra frontend origins |
 | `SPLUNK_ENABLED` | `true` to activate Splunk emission |
 | `SPLUNK_HEC_URL` | `https://your-splunk:8088/services/collector` |
 | `SPLUNK_HEC_TOKEN` | HEC token from Splunk |

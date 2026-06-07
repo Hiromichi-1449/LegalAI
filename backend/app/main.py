@@ -10,9 +10,15 @@ from app.services import splunk_service
 
 app = FastAPI(title="LegalAI API", version="0.1.0")
 
-_cors_origins = [settings.frontend_url]
+_cors_origins = [
+    "http://localhost:5173",
+    "https://legalai.consulting",
+    "https://www.legalai.consulting",
+    settings.frontend_url,
+]
 if settings.extra_cors_origins:
     _cors_origins += [o.strip() for o in settings.extra_cors_origins.split(",") if o.strip()]
+_cors_origins = list(dict.fromkeys(origin.rstrip("/") for origin in _cors_origins if origin))
 
 app.add_middleware(
     CORSMiddleware,
