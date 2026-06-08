@@ -16,9 +16,9 @@ type Tab = 'history' | 'files' | 'email'
 export function Sidebar() {
   const [activeTab, setActiveTab] = useState<Tab>('history')
   const [showNewConv, setShowNewConv] = useState(false)
-  const { user, isAuthenticated } = useAuth0()
+  const { user, isAuthenticated, isLoading } = useAuth0()
   const { appUser } = useAppUser()
-  const { fetchConversations } = useConversations()
+  const { fetchConversations, conversations, createGuestConversation } = useConversations()
   const { fetchClients } = useClientStore()
   const { isDark, toggle } = useThemeStore()
 
@@ -36,6 +36,13 @@ export function Sidebar() {
     fetchConversations()
     fetchClients()
   }, [isAuthenticated])
+
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return
+    if (conversations.length === 0) {
+      createGuestConversation('New conversation', 'Guest', '')
+    }
+  }, [isLoading, isAuthenticated])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'history', label: 'History' },

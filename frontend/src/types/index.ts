@@ -59,6 +59,7 @@ export interface Conversation {
   // enriched on the frontend
   clientFirstName?: string
   clientLastName?: string
+  clientEmail?: string | null
   messages?: Message[]
 }
 
