@@ -8,13 +8,47 @@ from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DB
 from app.db.models import Conversation, Message, MessageRole
-from app.schemas.chat import ChatRequest
+from app.schemas.chat import ChatRequest, GuestChatRequest
 from app.services import rag_service, llm_service, splunk_service
 from app.core.exceptions import NotFoundError, ForbiddenError
 
 router = APIRouter()
 
 HISTORY_LIMIT = 15
+
+
+@router.post("/guest")
+async def send_guest_message(body: GuestChatRequest):
+    history = body.history[-HISTORY_LIMIT:]
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a legal AI assistant for general information. "
+                "Answer clearly, avoid claiming to be a lawyer, and remind users to consult "
+                "qualified counsel for advice about their specific situation."
+            ),
+        },
+        *[
+            {"role": msg.role, "content": msg.content}
+            for msg in history
+            if msg.role in {"user", "assistant"} and msg.content.strip()
+        ],
+        {"role": "user", "content": body.message},
+    ]
+
+    async def event_stream():
+        try:
+            async for item in llm_service.stream_messages(body.model, messages):
+                if not isinstance(item, dict):
+                    yield f"data: {json.dumps({'token': item})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'error': 'Stream failed'})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.post("/{conversation_id}")

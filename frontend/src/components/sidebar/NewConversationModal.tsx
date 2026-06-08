@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
 import { useClientStore } from '../../store/clientStore'
 import { useConversations } from '../../hooks/useConversations'
 
@@ -8,7 +9,8 @@ interface Props {
 
 export function NewConversationModal({ onClose }: Props) {
   const { clients, createClient } = useClientStore()
-  const { createConversation } = useConversations()
+  const { createConversation, createGuestConversation } = useConversations()
+  const { isAuthenticated } = useAuth0()
 
   const [selectedClientId, setSelectedClientId] = useState<string>('')
   const [title, setTitle] = useState('')
@@ -26,6 +28,16 @@ export function NewConversationModal({ onClose }: Props) {
       let clientId = selectedClientId
       if (newClientMode) {
         if (!firstName.trim() || !lastName.trim()) return
+        if (!isAuthenticated) {
+          createGuestConversation(
+            title.trim(),
+            firstName.trim(),
+            lastName.trim(),
+            clientEmail.trim() || undefined,
+          )
+          onClose()
+          return
+        }
         const client = await createClient(firstName.trim(), lastName.trim(), clientEmail || undefined)
         clientId = client.id
       }

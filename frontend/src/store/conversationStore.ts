@@ -11,6 +11,12 @@ interface ConversationStore {
   fetchConversations: () => Promise<void>
   setActiveConversation: (id: string) => void
   createConversation: (clientId: string, title: string) => Promise<Conversation>
+  createGuestConversation: (
+    title: string,
+    firstName: string,
+    lastName: string,
+    email?: string,
+  ) => Conversation
   deleteConversation: (id: string) => Promise<void>
 
   fetchMessages: (conversationId: string) => Promise<void>
@@ -50,8 +56,32 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     return data
   },
 
+  createGuestConversation: (title, firstName, lastName, email) => {
+    const now = new Date().toISOString()
+    const conversation: Conversation = {
+      id: `guest-${crypto.randomUUID()}`,
+      firm_id: 'guest',
+      user_id: 'guest',
+      client_id: `guest-client-${crypto.randomUUID()}`,
+      title,
+      created_at: now,
+      updated_at: now,
+      clientFirstName: firstName,
+      clientLastName: lastName,
+      clientEmail: email || null,
+    }
+    set((s) => ({
+      conversations: [conversation, ...s.conversations],
+      activeConversationId: conversation.id,
+      messages: { ...s.messages, [conversation.id]: [] },
+    }))
+    return conversation
+  },
+
   deleteConversation: async (id) => {
-    await api.delete(`/conversations/${id}`)
+    if (!id.startsWith('guest-')) {
+      await api.delete(`/conversations/${id}`)
+    }
     set((s) => {
       const remaining = s.conversations.filter((c) => c.id !== id)
       const newActive =

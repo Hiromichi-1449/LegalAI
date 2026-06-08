@@ -57,8 +57,8 @@ export function ConversationHistory() {
             </p>
             {grouped[group].map((conv) => {
               const client = clientMap[conv.client_id]
-              const firstName = client?.first_name ?? '?'
-              const lastName = client?.last_name ?? '?'
+              const firstName = client?.first_name ?? conv.clientFirstName ?? '?'
+              const lastName = client?.last_name ?? conv.clientLastName ?? '?'
               return (
                 <div
                   key={conv.id}

@@ -8,6 +8,7 @@ export function useConversations() {
   const loading = useConversationStore((s) => s.loading)
   const setActiveConversation = useConversationStore((s) => s.setActiveConversation)
   const createConversation = useConversationStore((s) => s.createConversation)
+  const createGuestConversation = useConversationStore((s) => s.createGuestConversation)
   const deleteConversation = useConversationStore((s) => s.deleteConversation)
   const fetchConversations = useConversationStore((s) => s.fetchConversations)
   const fetchMessages = useConversationStore((s) => s.fetchMessages)
@@ -28,6 +29,7 @@ export function useConversations() {
     loading,
     setActiveConversation,
     createConversation,
+    createGuestConversation,
     deleteConversation,
     fetchConversations,
     fetchMessages,

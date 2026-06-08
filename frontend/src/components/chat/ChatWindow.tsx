@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
 import { useConversations } from '../../hooks/useConversations'
 import { MessageBubble } from './MessageBubble'
 import { InputBar } from './InputBar'
@@ -12,6 +13,7 @@ function generateId() {
 
 export function ChatWindow() {
   const { activeConversation, fetchMessages, addMessage } = useConversations()
+  const { isAuthenticated } = useAuth0()
   const bottomRef = useRef<HTMLDivElement>(null)
   const streamingRef = useRef<boolean>(false)
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -19,6 +21,7 @@ export function ChatWindow() {
   // Fetch messages when active conversation changes
   useEffect(() => {
     if (!activeConversation) return
+    if (activeConversation.id.startsWith('guest-')) return
     // Only fetch if we haven't loaded them yet (messages array empty and not streaming)
     setLoadingMessages(true)
     fetchMessages(activeConversation.id).finally(() => setLoadingMessages(false))
@@ -30,6 +33,8 @@ export function ChatWindow() {
 
   async function handleSend(content: string) {
     if (!activeConversation || streamingRef.current) return
+    const isGuestConversation = activeConversation.id.startsWith('guest-') || !isAuthenticated
+    const priorMessages = activeConversation.messages ?? []
 
     const userMsg: Message = {
       id: generateId(),
@@ -51,14 +56,27 @@ export function ChatWindow() {
     streamingRef.current = true
 
     try {
-      const response = await fetch(`${api.defaults.baseURL}/chat/${activeConversation.id}`, {
+      const response = await fetch(
+        `${api.defaults.baseURL}/chat/${isGuestConversation ? 'guest' : activeConversation.id}`,
+        {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: getAuthHeader(),
+          ...(isGuestConversation ? {} : { Authorization: getAuthHeader() }),
         },
-        body: JSON.stringify({ message: content }),
-      })
+        body: JSON.stringify(
+          isGuestConversation
+            ? {
+                message: content,
+                history: priorMessages.map((msg) => ({
+                  role: msg.role,
+                  content: msg.content,
+                })),
+              }
+            : { message: content },
+        ),
+        },
+      )
 
       if (!response.ok || !response.body) {
         throw new Error(`HTTP ${response.status}`)
@@ -78,19 +96,24 @@ export function ChatWindow() {
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
+          let parsed: { token?: string; error?: string }
           try {
-            const parsed = JSON.parse(line.slice(6))
-            if (parsed.token) {
-              accumulated += parsed.token
-              addMessage(activeConversation.id, {
-                id: assistantId,
-                role: 'assistant',
-                content: accumulated,
-                created_at: streamingMsg.created_at,
-              })
-            }
+            parsed = JSON.parse(line.slice(6))
           } catch {
             // ignore parse errors
+            continue
+          }
+
+          if (parsed.token) {
+            accumulated += parsed.token
+            addMessage(activeConversation.id, {
+              id: assistantId,
+              role: 'assistant',
+              content: accumulated,
+              created_at: streamingMsg.created_at,
+            })
+          } else if (parsed.error) {
+            throw new Error(parsed.error)
           }
         }
       }
