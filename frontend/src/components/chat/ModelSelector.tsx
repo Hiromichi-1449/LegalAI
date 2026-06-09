@@ -3,13 +3,13 @@ import type { LLMModel, LLMProvider } from '../../types'
 import { MODELS, useModelSelection } from '../../hooks/useModelSelection'
 
 const providerDot: Record<LLMProvider, string> = {
-  openai: 'bg-blue-500',
-  anthropic: 'bg-purple-500',
+  meta: 'bg-blue-500',
+  google: 'bg-emerald-500',
 }
 
 const providerLabel: Record<LLMProvider, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
+  meta: 'Meta',
+  google: 'Google',
 }
 
 export function ModelSelector() {
@@ -32,7 +32,7 @@ export function ModelSelector() {
       acc[m.provider] = [...(acc[m.provider] ?? []), m]
       return acc
     },
-    { openai: [], anthropic: [] }
+    { meta: [], google: [] }
   )
 
   return (

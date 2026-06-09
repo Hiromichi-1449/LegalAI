@@ -45,7 +45,7 @@ def test_user(test_firm):
         firm_id=test_firm.id,
         email="lawyer@testfirm.com",
         full_name="Test Lawyer",
-        preferred_model="gpt-5.4",
+        preferred_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
     )
     # Attach firm reference for convenience in tests
     user.firm = test_firm

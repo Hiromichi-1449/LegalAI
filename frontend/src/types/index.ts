@@ -1,4 +1,4 @@
-export type LLMProvider = 'openai' | 'anthropic'
+export type LLMProvider = 'meta' | 'google'
 
 export interface LLMModel {
   id: string

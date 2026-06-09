@@ -76,7 +76,7 @@ async def test_get_messages_forbidden(client, test_user, seeded_db):
         firm_id=other_firm.id,
         email="other@firm.com",
         full_name="Other",
-        preferred_model="gpt-5.4",
+        preferred_model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
     )
     other_client = Client(firm_id=other_firm.id, first_name="X", last_name="Y")
     seeded_db.add(other_firm)

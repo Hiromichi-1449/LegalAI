@@ -13,9 +13,12 @@ async def test_get_me(client, test_user):
 
 @pytest.mark.asyncio
 async def test_patch_me_model(client):
-    response = await client.patch("/users/me", json={"preferred_model": "claude-sonnet-4-6"})
+    response = await client.patch(
+        "/users/me",
+        json={"preferred_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo"},
+    )
     assert response.status_code == 200
-    assert response.json()["preferred_model"] == "claude-sonnet-4-6"
+    assert response.json()["preferred_model"] == "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 
 @pytest.mark.asyncio
@@ -29,12 +32,12 @@ async def test_patch_me_name(client):
 async def test_patch_me_both(client):
     response = await client.patch("/users/me", json={
         "full_name": "New Name",
-        "preferred_model": "claude-opus-4-6",
+        "preferred_model": "google/gemma-4-31B-it",
     })
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "New Name"
-    assert data["preferred_model"] == "claude-opus-4-6"
+    assert data["preferred_model"] == "google/gemma-4-31B-it"
 
 
 @pytest.mark.asyncio

@@ -4,12 +4,26 @@ import { api } from '../lib/api'
 import { useAppUser } from '../lib/authContext'
 
 export const MODELS: LLMModel[] = [
-  { id: 'gpt-5.4', label: 'GPT-5.4', provider: 'openai' },
-  { id: 'gpt-5.5-turbo', label: 'GPT-5.5 Turbo', provider: 'openai' },
-  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', provider: 'openai' },
-  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic' },
-  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', provider: 'anthropic' },
-  { id: 'claude-opus-4-6', label: 'Claude Opus 4.6', provider: 'anthropic' },
+  {
+    id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    label: 'Llama 3.3 70B',
+    provider: 'meta',
+  },
+  {
+    id: 'meta-llama/Meta-Llama-3-8B-Instruct-Lite',
+    label: 'Llama 3 8B Lite',
+    provider: 'meta',
+  },
+  {
+    id: 'google/gemma-4-31B-it',
+    label: 'Gemma 4 31B',
+    provider: 'google',
+  },
+  {
+    id: 'google/gemma-3n-E4B-it',
+    label: 'Gemma 3N E4B',
+    provider: 'google',
+  },
 ]
 
 export function useModelSelection() {

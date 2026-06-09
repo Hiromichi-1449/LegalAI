@@ -5,7 +5,7 @@ A multi-tenant SaaS platform that gives lawyers an AI-powered chat interface gro
 ## What it does
 
 - **RAG chat** — upload PDFs and DOCX files to a client matter; ask questions and get answers cited directly from those documents.
-- **Streaming responses** — answers stream token-by-token via SSE using GPT-5.4, GPT-5.5 Turbo, GPT-5.4 Mini, Claude Sonnet, Haiku, or Opus.
+- **Streaming responses** — answers stream token-by-token via SSE using Meta Llama and Google Gemma models.
 - **Client matters** — organise documents and conversations by client.
 - **Email** — compose and send emails via SendGrid, or connect Gmail to sync your inbox.
 - **Multi-tenant** — each law firm gets an isolated workspace; Auth0 handles authentication (Google, LinkedIn, email/password).
@@ -17,7 +17,7 @@ A multi-tenant SaaS platform that gives lawyers an AI-powered chat interface gro
 | Frontend | React 18 + TypeScript + Tailwind CSS + Auth0 + Zustand + Vite |
 | Backend | FastAPI + Python 3.12 + SQLAlchemy (async) + Alembic |
 | Database | Supabase (Postgres + pgvector) |
-| AI | OpenAI (embeddings + chat) + Anthropic (chat) |
+| AI | OpenAI (embeddings) + Together.ai (Llama/Gemma chat) |
 | Email | SendGrid (send) + Gmail API (inbox sync) |
 | Storage | Supabase Storage (documents) |
 
@@ -74,8 +74,8 @@ SUPABASE_URL=https://...
 SUPABASE_SERVICE_KEY=...
 AUTH0_DOMAIN=your-tenant.auth0.com
 AUTH0_AUDIENCE=https://api.legalai.app/
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...        # embeddings
+TOGETHER_API_KEY=...
 SENDGRID_API_KEY=SG....
 SENDGRID_FROM_EMAIL=noreply@yourdomain.com
 GMAIL_CLIENT_ID=...

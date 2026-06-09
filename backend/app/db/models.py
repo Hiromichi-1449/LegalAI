@@ -62,7 +62,11 @@ class User(Base):
     firm_id:         Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("firms.id", ondelete="CASCADE"), nullable=False)
     email:           Mapped[str]       = mapped_column(String, nullable=False)
     full_name:       Mapped[str]       = mapped_column(String, nullable=False)
-    preferred_model: Mapped[str]       = mapped_column(String, nullable=False, default="gpt-5.4")
+    preferred_model: Mapped[str]       = mapped_column(
+        String,
+        nullable=False,
+        default="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+    )
     gmail_address:   Mapped[str | None] = mapped_column(String, nullable=True)
     created_at:      Mapped[datetime]  = mapped_column(DateTime(timezone=True), server_default=func.now())
 

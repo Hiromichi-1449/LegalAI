@@ -32,7 +32,12 @@ def upgrade() -> None:
         sa.Column("firm_id", UUID(as_uuid=True), sa.ForeignKey("firms.id", ondelete="CASCADE"), nullable=False),
         sa.Column("email", sa.String, nullable=False),
         sa.Column("full_name", sa.String, nullable=False),
-        sa.Column("preferred_model", sa.String, nullable=False, server_default="gpt-5.4"),
+        sa.Column(
+            "preferred_model",
+            sa.String,
+            nullable=False,
+            server_default="meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        ),
         sa.Column("gmail_address", sa.String, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )

@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     auth0_domain: str
     auth0_audience: str
 
-    # OpenAI
+    # OpenAI embeddings
     openai_api_key: str
 
-    # Anthropic
-    anthropic_api_key: str
+    # Together.ai chat inference
+    together_api_key: str
 
     # SendGrid
     sendgrid_api_key: str
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     splunk_api_url: str = ""   # e.g. https://your-splunk-host:8089
     splunk_api_token: str = "" # Splunk management API bearer token
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()

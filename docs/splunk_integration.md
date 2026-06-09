@@ -25,7 +25,7 @@ flowchart TD
     BE["FastAPI Backend"]
     Auth0["Auth0"]
     Supabase["Supabase\nPostgres + pgvector + Storage"]
-    LLM["OpenAI / Anthropic"]
+    LLM["Together.ai\nLlama / Gemma"]
     Email["SendGrid / Gmail"]
 
     HEC["Splunk HEC :8088\nHTTP Event Collector"]
@@ -38,7 +38,7 @@ flowchart TD
     AdminUI["Security & Ops Page\n/security-ops"]
 
     InvestAPI["POST /internal/investigate"]
-    Claude["Claude\nInvestigation Agent\ntool_use loop"]
+    Llama["Llama\nInvestigation Agent\ntool-call loop"]
     SplunkAPI["Splunk REST API :8089\nrun_splunk_search tool"]
 
     User -->|HTTPS| FE
@@ -58,10 +58,10 @@ flowchart TD
     AlertsDB --> AdminUI
 
     AdminUI -->|"natural-language question\n+ alert context"| InvestAPI
-    InvestAPI --> Claude
-    Claude -->|"SPL tool calls"| SplunkAPI
+    InvestAPI --> Llama
+    Llama -->|"SPL tool calls"| SplunkAPI
     SplunkAPI --> Idx
-    Claude -->|"incident summary"| InvestAPI
+    Llama -->|"incident summary"| InvestAPI
     InvestAPI --> AdminUI
 ```
 
@@ -69,7 +69,7 @@ flowchart TD
 
 **Observability path:** `LegalAI → Splunk HEC (async) → Splunk Index → Dashboards`
 
-**Security path:** `Splunk SPL Alert → Webhook → splunk_alerts table → Admin Console → Claude Investigation → Summary`
+**Security path:** `Splunk SPL Alert → Webhook → splunk_alerts table → Admin Console → Llama Investigation → Summary`
 
 ## Hackathon Positioning
 
@@ -256,7 +256,7 @@ Useful fields:
   "user_id": "user_456",
   "client_id": "client_789",
   "conversation_id": "conv_123",
-  "model": "gpt-5.4",
+  "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
   "retrieved_chunks": 8,
   "citation_count": 4,
   "input_tokens": 2400,
@@ -266,7 +266,7 @@ Useful fields:
 }
 ```
 
-**Token count implementation note:** `input_tokens` and `output_tokens` must come from the provider's usage response, not estimated from character counts. `llm_service.stream_response()` must be updated to yield a usage sentinel dict (e.g. `{"usage": {"input_tokens": N, "output_tokens": N}}`) as its final item after all text tokens. `chat.py` detects the sentinel, uses the counts in the Splunk event, and does not forward it to the SSE stream. For OpenAI streaming, enable this with `stream_options={"include_usage": True}`. For Anthropic streaming, read the `usage` field from the final `message_delta` event.
+**Token count implementation note:** `input_tokens` and `output_tokens` must come from the provider's usage response, not estimated from character counts. `llm_service.stream_response()` must be updated to yield a usage sentinel dict (e.g. `{"usage": {"input_tokens": N, "output_tokens": N}}`) as its final item after all text tokens. `chat.py` detects the sentinel, uses the counts in the Splunk event, and does not forward it to the SSE stream. For Together's OpenAI-compatible streaming API, enable this with `stream_options={"include_usage": True}`.
 
 ### Email And Gmail Events
 

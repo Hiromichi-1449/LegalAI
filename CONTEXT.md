@@ -3,10 +3,10 @@
 ## Core Concepts
 
 ### LLM Provider
-A company whose models are selectable in the model picker. The UI groups models by **model creator** (who built the model), not by infrastructure provider (who serves it). Current providers: OpenAI, Anthropic, Meta, Google, Alibaba, Moonshot.
+A company whose models are selectable in the model picker. The UI groups models by **model creator** (who built the model), not by infrastructure provider (who serves it). Current chat providers: Meta and Google.
 
 ### Inference Provider
-The cloud service that hosts and serves open-weight model inference. LegalAI uses **Together.ai** for all open-source/open-weight models (Meta Llama, Google Gemma, Qwen, Kimi). Together.ai exposes an OpenAI-compatible API, so the backend routes it through the same streaming path as OpenAI.
+The cloud service that hosts and serves open-weight model inference. LegalAI uses **Together.ai** for Meta Llama and Google Gemma chat models. Together.ai exposes an OpenAI-compatible API, so the backend uses the OpenAI SDK with Together's base URL for chat inference.
 
 ### Email Sync
 The process of pulling a user's connected Gmail inbox into the LegalAI database via the Gmail API. Requires a one-time Google OAuth consent flow. Once connected, "Sync Email" fetches the latest 50 inbox messages and stores them as `Email` records scoped to the user's firm.

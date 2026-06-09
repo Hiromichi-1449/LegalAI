@@ -1,15 +1,21 @@
 from typing import Any, AsyncGenerator
 from openai import AsyncOpenAI
-from anthropic import AsyncAnthropic
 
 from app.config import settings
-from app.db.models import Message, MessageRole
+from app.db.models import Message
 
-openai_client  = AsyncOpenAI(api_key=settings.openai_api_key)
-anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+together_client = AsyncOpenAI(
+    api_key=settings.together_api_key,
+    base_url="https://api.together.xyz/v1",
+)
 
-OPENAI_MODELS    = {"gpt-5.4", "gpt-5.5-turbo", "gpt-5.4-mini"}
-ANTHROPIC_MODELS = {"claude-sonnet-4-6", "claude-haiku-4-5-20251001", "claude-opus-4-6"}
+DEFAULT_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+SUPPORTED_MODELS = {
+    DEFAULT_MODEL,
+    "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
+    "google/gemma-4-31B-it",
+    "google/gemma-3n-E4B-it",
+}
 
 SYSTEM_PROMPT = """\
 You are a legal AI assistant. Answer questions using ONLY the provided document excerpts.
@@ -51,22 +57,23 @@ async def stream_response(
     """
     messages = _build_messages(context, history, user_message)
 
-    if model in OPENAI_MODELS:
-        async for chunk in _stream_openai(model, messages):
-            yield chunk
-    elif model in ANTHROPIC_MODELS:
-        async for chunk in _stream_anthropic(model, messages):
-            yield chunk
-    else:
-        async for chunk in _stream_openai("gpt-5.4", messages):
-            yield chunk
+    async for chunk in _stream_together(model, messages):
+        yield chunk
 
 
-async def _stream_openai(
+async def stream_messages(
+    model: str,
+    messages: list[dict],
+) -> AsyncGenerator[str | dict[str, Any], None]:
+    async for chunk in _stream_together(model, messages):
+        yield chunk
+
+
+async def _stream_together(
     model: str, messages: list[dict]
 ) -> AsyncGenerator[str | dict[str, Any], None]:
-    stream = await openai_client.chat.completions.create(
-        model=model,
+    stream = await together_client.chat.completions.create(
+        model=model if model in SUPPORTED_MODELS else DEFAULT_MODEL,
         messages=messages,
         stream=True,
         stream_options={"include_usage": True},
@@ -81,26 +88,3 @@ async def _stream_openai(
                     "output_tokens": chunk.usage.completion_tokens,
                 }
             }
-
-
-async def _stream_anthropic(
-    model: str, messages: list[dict]
-) -> AsyncGenerator[str | dict[str, Any], None]:
-    system = messages[0]["content"]
-    chat_messages = messages[1:]
-
-    async with anthropic_client.messages.stream(
-        model=model,
-        max_tokens=4096,
-        system=system,
-        messages=chat_messages,
-    ) as stream:
-        async for text in stream.text_stream:
-            yield text
-        final = await stream.get_final_message()
-        yield {
-            "usage": {
-                "input_tokens": final.usage.input_tokens,
-                "output_tokens": final.usage.output_tokens,
-            }
-        }
